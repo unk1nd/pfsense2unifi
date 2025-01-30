@@ -47,10 +47,9 @@ LOCAL_PATH = "config.xml"
 UNIFI_CONTROLLER = "https://your-unifi-controller:8443"
 UNIFI_USERNAME = "your-username"
 UNIFI_PASSWORD = "your-password"
-UNIFI_LAN_NAME = "lan"
+UNIFI_LAN_NAME = "default"
 UNIFI_CONTROLLER_IP = "192.168.1.2"
-UNIFI_SSH_USER = "your-ssh-user"
-UNIFI_SSH_PASSWORD = "your-ssh-password"
+UNIFI_API_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 REMOTE_PATH = "/usr/lib/unifi/data/sites/default/config.gateway.json"
 
 # UniFi API Session
@@ -95,8 +94,11 @@ def parse_pfsense_config():
 
 def unifi_login():
     """Authenticate with the UniFi Controller API."""
-    login_payload = {"username": UNIFI_USERNAME, "password": UNIFI_PASSWORD}
-    response = session.post(f"{UNIFI_CONTROLLER}/api/login", json=login_payload, verify=False)
+    headers = {
+        'X-API-KEY': UNIFI_API_KEY,
+        'Accept': 'application/json'
+    }
+    response = session.post(f"{UNIFI_CONTROLLER}/proxy/network/api/self/sites", headers=headers, verify=False)
 
     if response.status_code == 200:
         print("[+] UniFi API login successful!")
@@ -106,7 +108,11 @@ def unifi_login():
 
 def get_network_id():
     """Retrieve the UniFi network ID for LAN."""
-    response = session.get(f"{UNIFI_CONTROLLER}/api/s/default/rest/networkconf", verify=False)
+    headers = {
+        'X-API-KEY': UNIFI_API_KEY,
+        'Accept': 'application/json'
+    }
+    response = session.get(f"{UNIFI_CONTROLLER}/proxy/network/api/s/default/rest/networkconf", headers=headers, verify=False)
     networks_data = response.json()["data"]
 
     for net in networks_data:
@@ -119,18 +125,25 @@ def get_network_id():
 
 def migrate_dhcp_reservations(network_id, reservations):
     """Migrate DHCP reservations to UniFi UXG."""
+    headers = {
+        'X-API-KEY': UNIFI_API_KEY,
+        'Accept': 'application/json'
+    }
+
     for reservation in reservations:
         payload = {
             "mac": reservation["mac"],
-            "ip": reservation["ip"],
+            "fixed_ip": reservation["ip"],
             "name": reservation["hostname"],
-            "use_fixed_ip": True
+            "site_id": network_id,
+            "use_fixedip": True,
         }
-        response = session.post(f"{UNIFI_CONTROLLER}/api/s/default/rest/user", json=payload, verify=False)
+        
+        response = session.post(f"{UNIFI_CONTROLLER}/proxy/network/api/s/default/rest/user", json=payload, headers=headers, verify=False)
         if response.status_code == 200:
-            print(f"[+] Added {reservation['mac']} -> {reservation['ip']} ({reservation['hostname']})")
+            print(f"[+] Added {reservation['mac']} -> {reservation['fixed_ip']} ({reservation['name']})")
         else:
-            print(f"[-] Failed to add {reservation['mac']} -> {reservation['ip']}: {response.text}")
+            print(f"[-] Failed to add {reservation['mac']} -> {reservation['fixed_ip']}: {response.text}")
 
 def generate_dns_json(dns_entries):
     """Generate a config.gateway.json file for static DNS entries (if applicable)."""
@@ -177,5 +190,5 @@ dhcp_reservations, dns_entries = parse_pfsense_config()
 unifi_login()
 network_id = get_network_id()
 migrate_dhcp_reservations(network_id, dhcp_reservations)
-generate_dns_json(dns_entries)
-upload_config_gateway_json()
+#generate_dns_json(dns_entries) # NOT TESTED
+#upload_config_gateway_json()   # NOT TESTED
