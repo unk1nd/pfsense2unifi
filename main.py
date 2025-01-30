@@ -185,10 +185,10 @@ def upload_config_gateway_json():
     print("[+] Restarted UniFi Controller!")
 
 # === Main Execution ===
-fetch_pfsense_config()
-dhcp_reservations, dns_entries = parse_pfsense_config()
-unifi_login()
-network_id = get_network_id()
-migrate_dhcp_reservations(network_id, dhcp_reservations)
+#fetch_pfsense_config() # NOT TESTED
+#dhcp_reservations, dns_entries = parse_pfsense_config() # NOT TESTED
+#unifi_login() # NOT TESTED, but works in postman
+#network_id = get_network_id() # NOT TESTED, but works in postman
+#migrate_dhcp_reservations(network_id, dhcp_reservations) # NOT TESTED but works in postman
 #generate_dns_json(dns_entries) # NOT TESTED
 #upload_config_gateway_json()   # NOT TESTED
