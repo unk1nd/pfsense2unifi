@@ -34,23 +34,27 @@ import requests
 import xml.etree.ElementTree as ET
 import json
 import urllib3
+import configparser
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Ignore SSL warnings
+config = configparser.ConfigParser()
+config.read("config.ini")
 
-# pfSense & Unifi script variables
-PFSENSE_IP = "192.168.1.1"
-PFSENSE_USER = "admin"
-PFSENSE_PASSWORD = "your-password"
-REMOTE_PATH = "/cf/conf/config.xml"
-LOCAL_PATH = "config.xml"
+# pfSense & Unifi script variables from config
+PFSENSE_IP = config["PFSENSE"]["PFSENSE_IP"]
+PFSENSE_USER = config["PFSENSE"]["PFSENSE_USER"]
+PFSENSE_PASSWORD = config["PFSENSE"]["PFSENSE_PASSWORD"]
+REMOTE_PATH = config["PFSENSE"]["REMOTE_PATH"]
+LOCAL_PATH = config["PFSENSE"]["LOCAL_PATH"]
+UNIFI_CONTROLLER = config["UNIFI"]["UNIFI_CONTROLLER"]
+UNIFI_USERNAME = config["UNIFI"]["UNIFI_USERNAME"]
+UNIFI_PASSWORD = config["UNIFI"]["UNIFI_PASSWORD"]
+UNIFI_LAN_NAME = config["UNIFI"]["UNIFI_LAN_NAME"]
+UNIFI_CONTROLLER_IP = config["UNIFI"]["UNIFI_CONTROLLER_IP"]
+UNIFI_API_KEY = config["UNIFI"]["UNIFI_API_KEY"]
+UNIFI_REMOTE_PATH = config["UNIFI"]["UNIFI_REMOTE_PATH"]
 
-UNIFI_CONTROLLER = "https://your-unifi-controller:8443"
-UNIFI_USERNAME = "your-username"
-UNIFI_PASSWORD = "your-password"
-UNIFI_LAN_NAME = "default"
-UNIFI_CONTROLLER_IP = "192.168.1.2"
-UNIFI_API_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-REMOTE_PATH = "/usr/lib/unifi/data/sites/default/config.gateway.json"
+SITE = None
 
 # UniFi API Session
 session = requests.Session()
@@ -58,8 +62,9 @@ session = requests.Session()
 def fetch_pfsense_config():
     """Fetch config.xml from pfSense via SSH."""
     client = paramiko.SSHClient()
+    client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(PFSENSE_IP, username=PFSENSE_USER, password=PFSENSE_PASSWORD)
+    client.connect(PFSENSE_IP, username=PFSENSE_USER, password=PFSENSE_PASSWORD, allow_agent=False, look_for_keys=False)
 
     sftp = client.open_sftp()
     sftp.get(REMOTE_PATH, LOCAL_PATH)
@@ -69,6 +74,7 @@ def fetch_pfsense_config():
 
 def parse_pfsense_config():
     """Extract DHCP reservations and static DNS entries from config.xml."""
+    print(LOCAL_PATH)
     tree = ET.parse(LOCAL_PATH)
     root = tree.getroot()
 
@@ -80,14 +86,17 @@ def parse_pfsense_config():
             "hostname": static_mapping.find("hostname").text if static_mapping.find("hostname") is not None else "Unknown"
         }
         dhcp_reservations.append(reservation)
+        print(f"Found Static Mapping: {reservation}")
 
     dns_entries = []
-    for host in root.findall(".//hosts/host"):
+    for host in root.findall(".//unbound/hosts"):
         dns_entry = {
             "hostname": host.find("host").text,
-            "ip": host.find("ip").text
+            "ip": host.find("ip").text,
+            "domain": host.find("domain").text
         }
         dns_entries.append(dns_entry)
+        print(f"Found DNS entry: {dns_entry}")
 
     print(f"[+] Extracted {len(dhcp_reservations)} DHCP reservations and {len(dns_entries)} static DNS entries.")
     return dhcp_reservations, dns_entries
@@ -98,7 +107,7 @@ def unifi_login():
         'X-API-KEY': UNIFI_API_KEY,
         'Accept': 'application/json'
     }
-    response = session.post(f"{UNIFI_CONTROLLER}/proxy/network/api/self/sites", headers=headers, verify=False)
+    response = session.get(f"{UNIFI_CONTROLLER}/proxy/network/api/self", headers=headers, verify=False)
 
     if response.status_code == 200:
         print("[+] UniFi API login successful!")
@@ -106,13 +115,26 @@ def unifi_login():
         print("[-] UniFi API login failed:", response.text)
         exit(1)
 
+def get_site_name():
+    """Retrieve the UniFi sitename for LAN."""
+    headers = {
+        'X-API-KEY': UNIFI_API_KEY,
+        'Accept': 'application/json'
+    }
+    sitename = session.get(f"{UNIFI_CONTROLLER}/proxy/network/api/self/sites", headers = headers, verify = False, timeout = 1).json() 
+    sitename = sitename["data"][0]["name"]
+    print(f"[+] Using Site: {sitename}")
+    global SITE
+    SITE = sitename
+
 def get_network_id():
     """Retrieve the UniFi network ID for LAN."""
     headers = {
         'X-API-KEY': UNIFI_API_KEY,
         'Accept': 'application/json'
     }
-    response = session.get(f"{UNIFI_CONTROLLER}/proxy/network/api/s/default/rest/networkconf", headers=headers, verify=False)
+
+    response = session.get(f"{UNIFI_CONTROLLER}/proxy/network/api/s/{SITE}/rest/networkconf", headers=headers, verify=False)
     networks_data = response.json()["data"]
 
     for net in networks_data:
@@ -125,6 +147,7 @@ def get_network_id():
 
 def migrate_dhcp_reservations(network_id, reservations):
     """Migrate DHCP reservations to UniFi UXG."""
+
     headers = {
         'X-API-KEY': UNIFI_API_KEY,
         'Accept': 'application/json'
@@ -139,11 +162,11 @@ def migrate_dhcp_reservations(network_id, reservations):
             "use_fixedip": True,
         }
         
-        response = session.post(f"{UNIFI_CONTROLLER}/proxy/network/api/s/default/rest/user", json=payload, headers=headers, verify=False)
+        response = session.post(f"{UNIFI_CONTROLLER}/proxy/network/api/s/{SITE}/rest/user", json=payload, headers=headers, verify=False)
         if response.status_code == 200:
-            print(f"[+] Added {reservation['mac']} -> {reservation['fixed_ip']} ({reservation['name']})")
+            print(f"[+] Added {reservation['mac']} -> {reservation['ip']} ({reservation['hostname']})")
         else:
-            print(f"[-] Failed to add {reservation['mac']} -> {reservation['fixed_ip']}: {response.text}")
+            print(f"[-] Failed to add {reservation['mac']} -> {reservation['ip']}: {response.text}")
 
 def generate_dns_json(dns_entries):
     """Generate a config.gateway.json file for static DNS entries (if applicable)."""
@@ -185,10 +208,11 @@ def upload_config_gateway_json():
     print("[+] Restarted UniFi Controller!")
 
 # === Main Execution ===
-#fetch_pfsense_config() # NOT TESTED
-#dhcp_reservations, dns_entries = parse_pfsense_config() # NOT TESTED
-#unifi_login() # NOT TESTED, but works in postman
-#network_id = get_network_id() # NOT TESTED, but works in postman
-#migrate_dhcp_reservations(network_id, dhcp_reservations) # NOT TESTED but works in postman
-#generate_dns_json(dns_entries) # NOT TESTED
+fetch_pfsense_config()
+dhcp_reservations, dns_entries = parse_pfsense_config()
+unifi_login()
+get_site_name()
+network_id = get_network_id()
+migrate_dhcp_reservations(network_id, dhcp_reservations)
+generate_dns_json(dns_entries)
 #upload_config_gateway_json()   # NOT TESTED

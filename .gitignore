@@ -2,3 +2,5 @@
 *.json
 notes
 test.py
+venv
+config.ini
