@@ -1,6 +1,7 @@
 # Automate Script for Migrating from Pfsense to Unifi
 
-THIS IS A WORK IN PROGRES AND NOT COMPLETED  
+THIS IS A WORK IN PROGRES AND NOT COMPLETED   
+
 Phase: Active Development
 
 ## Description
@@ -30,6 +31,13 @@ Usage:
 4. Check the UniFi Controller to verify DHCP reservations.
 5. If using `config.gateway.json`, ensure it is uploaded and applied correctly.
 
+## Python env
+
+```bash
+> python3 -m venv venv
+> venv/bin/pip install -r requirements.txt
+> venv/bin/python main.py -h
+```
 
 ## Functions Status
 
@@ -43,11 +51,30 @@ Not tested at all yet
 - static DNS for unifi api
 
 
-## Runtime
+## Command line
+```bash
+> python3 main.py -h
+
+usage: main.py [-h] [-a] [-p] [-u] [-v]
+
+Automated Migration from pfSense to Ubiquiti UXG.
+
+options:
+  -h, --help         show this help message and exit
+  -a, --all          Run both for pfsense and unifi
+  -p, --pfsenseOnly  Run only pfsense fetching
+  -u, --unifiOnly    Run Unifi parsing and storing
+  -v, --verbose      Show Verbose (DHCP leases and IPs)
+
+Run at own risk as its still in Beta. Follow updates on https://github.com/unk1nd/pfsense2unifi
+```
+
+## Runtime example
 
 ```bash
-> python3 main.py
+> python3 main.py -a -v
 
+[!] Verbose mode enabled.
 [+] Downloaded config.xml successfully!
    - Found Static Mapping: {'mac': 'bc:24:11:74:d7:62', 'ip': '192.168.1.143', 'hostname': 'ubuntu_desktop'}
    - Found DNS entry: {'hostname': 'testdns', 'ip': '1.3.3.7', 'domain': 'bendiksens.net'}
@@ -58,3 +85,7 @@ Not tested at all yet
 [+] Added bc:24:11:74:d7:62 -> 192.168.1.143 (ubuntu_desktop)
 [+] Generated config.gateway.json for static DNS entries.
 ```
+
+## Issues?
+
+Please create a issue and ill take a look at it, even if you have any request for changes or features
