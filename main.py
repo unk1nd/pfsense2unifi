@@ -8,6 +8,7 @@ Features:
 - Connects to pfSense via SSH and extracts the `config.xml` file.
 - Parses DHCP reservations and static DNS entries from `config.xml`.
 - Authenticates with the UniFi Controller API.
+- Finds SiteName to be used in URL for UniFi Controller API.
 - Finds the LAN network ID for the target network.
 - Migrates DHCP reservations to the UXG.
 - Generates a `config.gateway.json` file for static DNS mappings.
@@ -19,18 +20,20 @@ Prerequisites:
 - Ensure your user has sufficient permissions to modify UniFi settings.
 
 Usage:
-1. Update the script variables (IP addresses, credentials, API details).
-2. Run the script in a Python 3 environment.
-3. Check the UniFi Controller to verify DHCP reservations.
-4. If using `config.gateway.json`, ensure it is uploaded and applied correctly.
+1. Update the config.ini (IP addresses, credentials, API details).
+2. Installed required packages from the requiredment.txt file
+3. Run the script in a Python 3 environment.
+4. Check the UniFi Controller to verify DHCP reservations.
+5. If using `config.gateway.json`, ensure it is uploaded and applied correctly.
 
 Author: Mikael Bendiksen
 Date: 2025-01-30
-Version: Alpha
+Version: Beta
 """
 
 import paramiko
 import requests
+import argparse
 import xml.etree.ElementTree as ET
 import json
 import urllib3
@@ -55,6 +58,15 @@ UNIFI_API_KEY = config["UNIFI"]["UNIFI_API_KEY"]
 UNIFI_REMOTE_PATH = config["UNIFI"]["UNIFI_REMOTE_PATH"]
 
 SITE = None
+
+# Program args
+parser = argparse.ArgumentParser(description="Automated Migration from pfSense to Ubiquiti UXG.", epilog="Run at own risk as its still in Beta. Follow updates on https://github.com/unk1nd/pfsense2unifi")
+parser.add_argument("-a", "--all", dest="all", action="store_true", help="Run both for pfsense and unifi")
+parser.add_argument("-p", "--pfsenseOnly", dest="pfsense", action="store_true", help="Run only pfsense fetching")
+parser.add_argument("-u", "--unifiOnly", dest="unifi", action="store_true", help="Run Unifi parsing and storing")
+parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Show Verbose (DHCP leases and IPs)")
+args = parser.parse_args()
+
 
 # UniFi API Session
 session = requests.Session()
@@ -86,7 +98,8 @@ def parse_pfsense_config():
             "hostname": static_mapping.find("hostname").text if static_mapping.find("hostname") is not None else "Unknown"
         }
         dhcp_reservations.append(reservation)
-        print(f"Found Static Mapping: {reservation}")
+        if args.verbose:
+            print(f"Found Static Mapping: {reservation}")
 
     dns_entries = []
     for host in root.findall(".//unbound/hosts"):
@@ -96,7 +109,8 @@ def parse_pfsense_config():
             "domain": host.find("domain").text
         }
         dns_entries.append(dns_entry)
-        print(f"Found DNS entry: {dns_entry}")
+        if args.verbose:
+            print(f"Found DNS entry: {dns_entry}")
 
     print(f"[+] Extracted {len(dhcp_reservations)} DHCP reservations and {len(dns_entries)} static DNS entries.")
     return dhcp_reservations, dns_entries
@@ -139,7 +153,8 @@ def get_network_id():
 
     for net in networks_data:
         if net["name"].lower() == UNIFI_LAN_NAME:
-            print(f"[+] Found LAN network ID: {net['_id']}")
+            if args.verbose:
+                print(f"[+] Found LAN network ID: {net['_id']}")
             return net["_id"]
 
     print("[-] LAN network not found!")
@@ -207,12 +222,38 @@ def upload_config_gateway_json():
     client.close()
     print("[+] Restarted UniFi Controller!")
 
-# === Main Execution ===
-fetch_pfsense_config()
-dhcp_reservations, dns_entries = parse_pfsense_config()
-unifi_login()
-get_site_name()
-network_id = get_network_id()
-migrate_dhcp_reservations(network_id, dhcp_reservations)
-generate_dns_json(dns_entries)
-#upload_config_gateway_json()   # NOT TESTED
+
+def main():
+    # === Main Execution ===
+    if not any(vars(args).values()):
+       print("[!] No arguments given!\n")
+       parser.print_help()
+       exit(1)  # Exit with an error code
+
+    if args.verbose:
+        print("[!] Verbose mode enabled.")
+
+    if args.all:
+        fetch_pfsense_config()
+        dhcp_reservations, dns_entries = parse_pfsense_config()
+        unifi_login()
+        get_site_name()
+        network_id = get_network_id()
+        migrate_dhcp_reservations(network_id, dhcp_reservations)
+        generate_dns_json(dns_entries)
+        #upload_config_gateway_json()   # NOT TESTED
+
+    if args.pfsense and args.all != True:
+        fetch_pfsense_config()
+        dhcp_reservations, dns_entries = parse_pfsense_config()
+
+    if args.unifi and args.all != True:
+        unifi_login()
+        get_site_name()
+        network_id = get_network_id()
+        migrate_dhcp_reservations(network_id, dhcp_reservations)
+        generate_dns_json(dns_entries)
+        #upload_config_gateway_json()   # NOT TESTED
+
+if __name__ == "__main__":
+    main()
