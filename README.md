@@ -4,6 +4,17 @@ THIS IS A WORK IN PROGRES AND NOT COMPLETED
 
 Phase: Active Development
 
+## Functions Status
+
+Tested functions:
+- Login API unifi
+- Adding static ip for new device
+- Getting correct network id
+- pfsense parse
+
+Not tested at all yet
+- static DNS for unifi api
+
 ## Description
 
 This script automates the migration of DHCP reservations and static DNS entries from a pfSense 
@@ -59,18 +70,6 @@ The config has two sections `[PFSENSE]` and `[UNIFI]` that stores each attribute
 | UNIFI_REMOTE_PATH | Not used at this point |
 
 See `config.ini.example` as an example or rename it to `config.ini` and adjust.
-
-## Functions Status
-
-Tested functions:
-- Login API unifi
-- Adding static ip for new device
-- Getting correct network id
-- pfsense parse
-
-Not tested at all yet
-- static DNS for unifi api
-
 
 ## Command line
 
