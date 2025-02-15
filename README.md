@@ -39,6 +39,27 @@ Usage:
 > venv/bin/python main.py -h
 ```
 
+## Config description
+
+The config has two sections '[PFSENSE]' and '[UNIFI]' that stores each attributes needed for the script to execute its functions that are stored in `config.ini`
+
+| KEY      | VALUE |
+| ----------- | ----------- |
+| PFSENSE_IP      | The Ip address of the pfsense firewall |
+| PFSENSE_USER   | The user the script can use to SSH in to the firewall |
+| PFSENSE_PASSWORD | The password for the user to SSH in to the firewall |
+| REMOTE_PATH  | The path where the config.xml is on pfsense ( /cf/conf/config.xml ) |
+| LOCAL_PATH | where to store the fetched config.xml on your system |
+| UNIFI_CONTROLLER | the https path to the unifi controller ( https://192.168.1.8 )|
+| UNIFI_USERNAME | Not used at this point |
+| UNIFI_PASSWORD | Not used at this point |
+| UNIFI_LAN_NAME | Name of the network in unifi that you want the configuration to be stored ( Mine is called Default ) |
+| UNIFI_CONTROLLER_IP | the IP of the controller |
+| UNIFI_API_KEY | The API key that the software will use to auth to the API on the controller |
+| UNIFI_REMOTE_PATH | Not used at this point |
+
+See `config.ini.example` as an example or rename it to `config.ini` and adjust.
+
 ## Functions Status
 
 Tested functions:
@@ -52,6 +73,7 @@ Not tested at all yet
 
 
 ## Command line
+
 ```bash
 > python3 main.py -h
 
