@@ -41,7 +41,7 @@ Usage:
 
 ## Config description
 
-The config has two sections '[PFSENSE]' and '[UNIFI]' that stores each attributes needed for the script to execute its functions that are stored in `config.ini`
+The config has two sections `[PFSENSE]` and `[UNIFI]` that stores each attributes needed for the script to execute its functions that are stored in `config.ini`
 
 | KEY      | VALUE |
 | ----------- | ----------- |
