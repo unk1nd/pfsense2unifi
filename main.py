@@ -248,6 +248,7 @@ def main():
         dhcp_reservations, dns_entries = parse_pfsense_config()
 
     if args.unifi and args.all != True:
+        dhcp_reservations, dns_entries = parse_pfsense_config()
         unifi_login()
         get_site_name()
         network_id = get_network_id()
